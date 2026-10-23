@@ -1,6 +1,6 @@
 # Optimize for Tesla Screen
 
-A reusable agent skill for making websites work well in modern Tesla Model 3 and Model Y browsers. Includes source-backed guidance, a real-site case study, a private-by-default measurement page, and notes on iPhone Duo Safari and Expo.
+A reusable agent skill for making websites work well in Tesla in-car browsers: modern Model 3 and Model Y, and the 2021+ landscape Model S and Model X. Includes source-backed guidance, a real-site case study, a private-by-default measurement page, and notes on iPhone Duo Safari and Expo.
 
 This is a website optimization workflow. It does not install software on a vehicle or expose vehicle controls.
 
@@ -23,8 +23,8 @@ Use a different destination if that directory already contains a skill you want 
 ## Use
 
 ```text
-Use $optimize-tesla-screen to audit this site for a modern Model 3 or
-Model Y browser. Preserve the visual identity, measure the actual viewport,
+Use $optimize-tesla-screen to audit this site for a modern Model 3, Model Y,
+Model S or Model X browser. Preserve the visual identity, measure the actual viewport,
 fix the relevant issues, and distinguish emulation from real-car results.
 ```
 
@@ -42,10 +42,12 @@ Serve the file on an authorized preview to open it in a parked car. Record model
 - Readable fonts and glyph fallbacks, CSS panel geometry and deliberate boot hold/exit controls.
 - Consistent animation timing, centered resizing, one animation owner, reduced-motion behavior and bounded font-load failure handling.
 - Independent safe areas, short landscape windows, touch targets and native keyboard activation.
+- Model S and Model X (2021+): panel facts, the one public DPR reading, a clearly labeled derived test fixture, and a capture checklist. See [the S/X reference](references/model-s-x.md).
+- Both-axis scaling for fullscreen art, device-pixel snapping for moving text at fractional DPR, and tap-to-reveal fullscreen controls.
 - A source-labeled case study from [zayd.wtf](https://zayd.wtf/).
 - Duo Safari's experimental fold APIs and the boundary between an existing website and an Expo native companion.
 
-Research refreshed October 22, 2026. Device behavior can change with firmware. The bundled probe was tested in desktop Chromium emulation; this release does not claim physical-car or Duo hardware certification.
+Research refreshed October 23, 2026. Device behavior can change with firmware. The bundled probe was tested in desktop Chromium emulation; this release does not claim physical-car or Duo hardware certification.
 
 ## Validate
 

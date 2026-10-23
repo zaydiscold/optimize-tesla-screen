@@ -1,4 +1,4 @@
 interface:
   display_name: "Optimize for Tesla Screen"
-  short_description: "Tune sites for modern Model 3 and Model Y browsers"
-  default_prompt: "Use $optimize-tesla-screen to audit this site for modern Tesla Model 3 and Model Y touchscreens, preserving its visual identity."
+  short_description: "Tune sites for Tesla Model 3, Y, S and X browsers"
+  default_prompt: "Use $optimize-tesla-screen to audit this site for Tesla Model 3, Model Y, Model S and Model X touchscreens, preserving its visual identity."
