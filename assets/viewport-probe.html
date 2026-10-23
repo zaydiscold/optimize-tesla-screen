@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>Tesla / foldable viewport probe</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 18px/1.5 system-ui, sans-serif; background: #17191c; color: #eee; }
+  main { max-width: 75rem; margin: auto; padding: 24px;
+    padding: max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) max(24px, env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px)); }
+  h1 { font-size: clamp(24px, 3vw, 36px); line-height: 1.2; }
+  p { max-width: 68ch; }
+  button, input { min-height: 48px; font: inherit; padding: 10px 16px; border: 1px solid #888; border-radius: 6px; }
+  button { cursor: pointer; background: #30353c; color: #fff; }
+  button:focus-visible, input:focus-visible { outline: 3px solid #ffb057; outline-offset: 3px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; }
+  input { width: min(100%, 32rem); background: #222; color: #fff; }
+  label { display: grid; gap: 8px; margin: 20px 0; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 16px; border: 1px solid #555; font: 15px/1.5 ui-monospace, monospace; }
+  #arena { position: fixed; inset: 0; pointer-events: none; border: 3px solid #ffb057; z-index: 10; }
+  #safe { position: fixed; visibility: hidden; pointer-events: none;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
+  #notice { color: #ffcc8d; }
+</style>
+<div id="arena" aria-hidden="true"></div><div id="safe" aria-hidden="true"></div>
+<main>
+  <h1>Viewport probe</h1>
+  <p>Measure in a parked car or a test device. Resize the browser, open its chrome, and focus the field to compare keyboard geometry. This file makes no network requests and stores nothing. Record model, year, firmware, and display separately.</p>
+  <div class="controls">
+    <button id="capture" type="button">Capture measurements</button>
+    <button id="copy" type="button">Copy report</button>
+    <button id="fullscreen" type="button">Toggle fullscreen</button>
+    <button id="frames" type="button">Sample frames for 3 seconds</button>
+  </div>
+  <label>Keyboard test — text is never included in the report<input placeholder="Focus here to open the keyboard" autocomplete="off"></label>
+  <p id="notice" role="status" aria-live="polite"></p>
+  <h2>Current geometry</h2><pre id="output"></pre>
+  <h2>Recent geometry changes</h2><pre id="history"></pre>
+</main>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const queries = ['(pointer: coarse)', '(any-pointer: coarse)', '(hover: hover)', '(prefers-reduced-motion: reduce)', '(prefers-color-scheme: dark)', '(horizontal-viewport-segments: 2)', '(vertical-viewport-segments: 2)'];
+  const history = [];
+  let frameReport = null;
+  const rounded = n => Math.round(n * 100) / 100;
+  function collect() {
+    const v = window.visualViewport, r = $('arena').getBoundingClientRect();
+    const safe = getComputedStyle($('safe'));
+    return {
+      capturedAt: new Date().toISOString(),
+      inner: { width: innerWidth, height: innerHeight },
+      rootClient: { width: document.documentElement.clientWidth, height: document.documentElement.clientHeight },
+      fixedArena: { x: rounded(r.x), y: rounded(r.y), width: rounded(r.width), height: rounded(r.height) },
+      visualViewport: v ? { width: rounded(v.width), height: rounded(v.height), scale: v.scale, offsetLeft: v.offsetLeft, offsetTop: v.offsetTop } : null,
+      screen: { width: screen.width, height: screen.height, availableWidth: screen.availWidth, availableHeight: screen.availHeight },
+      dpr: devicePixelRatio,
+      safeArea: { top: safe.paddingTop, right: safe.paddingRight, bottom: safe.paddingBottom, left: safe.paddingLeft },
+      maxTouchPoints: navigator.maxTouchPoints || 0,
+      mediaQueries: Object.fromEntries(queries.map(q => [q, matchMedia(q).matches])),
+      capabilities: { resizeObserver: 'ResizeObserver' in window, wakeLock: 'wakeLock' in navigator, fullscreen: !!document.fullscreenEnabled, clipboard: !!navigator.clipboard, posture: !!navigator.devicePosture },
+      posture: navigator.devicePosture ? navigator.devicePosture.type : null,
+      visibility: document.visibilityState,
+      frameSample: frameReport,
+      userAgent: navigator.userAgent
+    };
+  }
+  function render(reason) {
+    const report = collect();
+    $('output').textContent = JSON.stringify(report, null, 2);
+    history.unshift({ time: report.capturedAt, reason, inner: report.inner, arena: report.fixedArena, visual: report.visualViewport });
+    history.length = Math.min(history.length, 12);
+    $('history').textContent = JSON.stringify(history, null, 2);
+    return report;
+  }
+  window.viewportProbe = { collect };
+  $('capture').onclick = () => render('manual capture');
+  $('copy').onclick = async () => {
+    try { await navigator.clipboard.writeText(JSON.stringify(collect(), null, 2)); $('notice').textContent = 'Report copied.'; }
+    catch { $('notice').textContent = 'Clipboard unavailable. Select the report text and copy it manually.'; }
+  };
+  $('fullscreen').onclick = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else if (document.fullscreenEnabled) await document.documentElement.requestFullscreen();
+      else throw new Error('Fullscreen is not available in this browser.');
+    } catch (e) { $('notice').textContent = e.message; }
+  };
+  $('frames').onclick = () => {
+    const button = $('frames'); button.disabled = true;
+    const intervals = []; let first = null, last = null, raf;
+    const end = aborted => {
+      cancelAnimationFrame(raf); document.removeEventListener('visibilitychange', onVisibility);
+      button.disabled = false;
+      intervals.sort((a,b) => a-b);
+      frameReport = { aborted, samples: intervals.length, medianMs: intervals.length ? rounded(intervals[Math.floor(intervals.length * 0.5)]) : null, p95Ms: intervals.length ? rounded(intervals[Math.min(intervals.length - 1, Math.floor(intervals.length * 0.95))]) : null };
+      $('notice').textContent = aborted ? 'Sample cancelled because the page became hidden.' : 'Sample finished. This measures frame scheduling on this page, not the performance of your website.';
+      render('frame sample');
+    };
+    const onVisibility = () => { if (document.hidden) end(true); };
+    const tick = time => {
+      if (first === null) first = time;
+      if (last !== null) intervals.push(time-last);
+      last = time;
+      if (time-first >= 3000) end(false); else raf = requestAnimationFrame(tick);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    if (document.hidden) end(true); else raf = requestAnimationFrame(tick);
+  };
+  addEventListener('resize', () => render('window resize'));
+  document.addEventListener('fullscreenchange', () => render('fullscreen'));
+  if (window.visualViewport) {
+    visualViewport.addEventListener('resize', () => render('visual viewport resize'));
+    visualViewport.addEventListener('scroll', () => render('visual viewport scroll'));
+  }
+  if ('ResizeObserver' in window) new ResizeObserver(() => render('arena resize')).observe($('arena'));
+  queries.forEach(q => { const m = matchMedia(q); if (m.addEventListener) m.addEventListener('change', () => render('media query change')); });
+  if (navigator.devicePosture && navigator.devicePosture.addEventListener) navigator.devicePosture.addEventListener('change', () => render('posture change'));
+  render('initial');
+})();
+</script>
+</html>
